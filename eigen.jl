@@ -1,19 +1,15 @@
 #TODO
 #=
-#Look for dip starting with zero vector rather than one vector
 #Massively Refactor Code
-#Begin Other chain simulations
 
-Object Oriented Perhaps???
 Test the norms between eigenvectors of successive calculations, and for the stationary distributions as well
-
 
 =#
 
 
 using PyPlot
 
-networkName = "socEpSmall"
+networkName = "NAN"
 stateA = 621
 stateB = 1478
 
@@ -34,7 +30,7 @@ function extractStationaryDist(maxState, c, eigenSize)
 	println("Stationary sum")
 	println("$inner")
 	if abs(inner[1] - 1.0) > 0.01
-		println("Error : Stationary Distribution does not add to one")
+		write(STDERR, "Error : Stationary Distribution does not add to one")
 		quit()
 	end
 
@@ -46,8 +42,6 @@ function extractEigenvector(M)
 	println("Eigenvector calculation")
 	@time eigenvalues,eigenvectors = eigs(M, nev=5)
 
-	print("Eigenvalues\n$eigenvalues\n")
-
 	eigen_id = -1
 	for i in 1:5
 		println("Eigenvalue $i $(eigenvalues[i])")
@@ -58,7 +52,7 @@ function extractEigenvector(M)
 	end
 
 	if eigen_id == -1
-		println("Error, no eigenvector with eigenvalue of one")
+		write(STDERR, "Error, no eigenvector with eigenvalue of one")
 		quit()
 	end
 
@@ -103,7 +97,6 @@ function getMatrix(inputFile, probsFile)
 	probs = Dict{Int64, Float64}()
 
 	P = readdlm(probsFile, Float64)
-
 	for i in 1:size(P,1 )
 		a = convert(Int64, P[i,1]) + 1
 		b = convert(Int64, P[i,2]) + 1
@@ -136,6 +129,18 @@ function getMatrix(inputFile, probsFile)
 	#instead, we do ij to destination k with P(1/ij)
 	#this works as if it were also i <- jk as well as ij->k
 	#since the state ordering is the relevant part and it's super symmetric
+
+
+	psize = size(A, 1)
+
+	inl = psize * 4 / 10
+
+	inl = round(Int64, inl)
+	global stateA = convert(Int64, A[inl,1]) + 1
+	global stateB = convert(Int64, A[inl,2]) + 1
+
+
+
 	for i in 1:n
 		#intaking the 3 variables
 		a = convert(Int64, A[i,1])+1
@@ -226,7 +231,7 @@ function SimulateSOMC(G, station, maxState, probs, oneVec = false)
 	indication = true
 
 	modulo = 10
-	totalTimes = 1e7
+	totalTimes = 300000
 	write(STDERR, "$totalTimes")
 
 
@@ -261,6 +266,7 @@ function SimulateSOMC(G, station, maxState, probs, oneVec = false)
 		#if there are no zeroes left
 		if indicator && indication
 			write(STDERR, "All states reached at iteration $beans and at state groupings $a $b $c\n")
+			write(STDOUT, "All states reached at iteration $beans and at state groupings $a $b $c\n")
 			indication = false
 		end
 
@@ -315,7 +321,9 @@ function SimulateSOMC(G, station, maxState, probs, oneVec = false)
 	d = norm(converg-station)
 	println("difference in norm: $d")
 
-
+	n = size(iters, 1)
+	iters = iters[2:n]
+	vals = vals[2:n]
 	return iters, vals
 end
 
@@ -418,4 +426,8 @@ function main()
 end
 
 write(STDERR, "begin\n")
+if networkName == "NAN"
+	println("Change network name")
+	quit()
+end
 main()
