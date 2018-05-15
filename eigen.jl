@@ -15,113 +15,8 @@ using PyPlot
 
 networkName = "socEpSmall"
 
+#also change state information below
 
-function SimulateOneSOMC(G, station, maxState, probs)
-	counter = 0.0  # this is used to determine how many transitions have been made
-	∆ = 0 #this is never used
-	a,b = 621, 1478 #arbitrary starting point
-
-	converg = ones(Float64, maxState)
-	instance = zeros(Float64, maxState)
-
-	iters = [0]
-	vals = [0.0]
-
-	indication = true
-
-	modulo = 50
-	totalTimes = 1e7
-	write(STDERR, "$totalTimes")
-
-
-	for beans in 1:totalTimes
-		 #not sure how to start the chain, doesn't really matter but still
-		t = time()
-		
-		#get graph adj list for state that we're on currenlty
-		arr = G[a,b]
-
-		#get a random end state for us to jump to
-		i = fRand()
-		i = ceil( i/probs[f(a,b, maxState)] )   #check this line of code
-		i = convert(Int64, i)
-		#arr = G[a,b]
-		c = arr[i]
-	
-		#update the number of times we've been at a state
-		instance[c] += 1
-		converg[c] = 1.0 / instance[c]
-
-		#update the convergence distribution each time we get to a state
-		indicator = true
-		for j in 1:maxState
-			if instance[j] != 0
-				#converg[j] = 1.0 / instance[j]
-				converg[j] = instance[j] / counter
-			else #if it is zero
-				indicator = false
-			end
-		end
-		#if there are no zeroes left
-		if indicator && indication
-			write(STDERR, "All states reached at iteration $beans and at state groupings $a $b $c\n")
-			indication = false
-		end
-
-		#update the new difference and add it to the x and y axis information
-		d = norm(converg-station)
-		t = time() - t
-		if beans % modulo == 0
-			append!(iters, beans)
-			append!(vals, d)
-			#=
-			println("beans: $beans")
-			println("\ta: $a, b: $b, c, $c")
-			println("\tDiff: $d")
-			println("\tTime: $t")
-			=#
-		end
-
-
-		a=b
-		b=c
-		counter += 1
-
-		#this is never used
-		if false #d < ∆
-			println("below threshold")
-			break
-		end
-
-	end
-	
-	println("Iterations until convergence:")
-	println("$counter")
-
-	numOnes = 0
-
-
-	for i in 1:maxState
-		print("My: $(converg[i]) \tStationary: $(station[i])\n")
-		if converg[i] == 1
-			numOnes += 1
-		end
-	end
-	println("Num ONes: $numOnes")
-	println("original norm: $d")
-
-	for i in 1:maxState
-		if instance[i] == 0
-			converg[i] = 0
-		end
-	end
-
-	d = norm(converg-station)
-	println("difference in norm: $d")
-
-
-	return iters, vals
-end
 
 
 function extractStationaryDist(maxState, c, eigenSize)
@@ -312,12 +207,18 @@ end
 #this is a markov chain simulation, the chain makes random jumps to different states and we 
 #record the information to see how quickly it becomes accurate to the stationary distribution
 
-function SimulateSOMC(G, station, maxState, probs)
+function SimulateSOMC(G, station, maxState, probs, oneVec = false)
 	counter = 0.0  # this is used to determine how many transitions have been made
 	∆ = 0 #this is never used
 	a,b = 621, 1478 #arbitrary starting point
 
-	converg = zeros(Float64, maxState)
+	converg = 0
+	if oneVec
+		converg = ones(Float64, maxState)
+	else
+		converg = zeros(Float64, maxState)
+	end
+
 	instance = zeros(Float64, maxState)
 
 	iters = [0]
@@ -325,7 +226,7 @@ function SimulateSOMC(G, station, maxState, probs)
 
 	indication = true
 
-	modulo = 50
+	modulo = 10
 	totalTimes = 1e7
 	write(STDERR, "$totalTimes")
 
@@ -433,6 +334,46 @@ function fRand()
 	return A[1]
 end
 
+
+function simuJump()
+
+	inputFile = "$networkName-In.txt"
+	probsFile = "$networkName-Probs.txt"
+	G, M, maxState, probs = getMatrix(inputFile, probsFile)
+
+	#getting information about the size of the eigenvectors
+
+	n = size(M,1)
+
+	station = readdlm("$networkName-StationaryDist.out")
+
+	write(STDERR, "beginning simulation\n")
+	@time iters, vals = SimulateSOMC(G, station, maxState, probs)
+
+	plotInfo = [iters vals]
+	writedlm("$networkName-Plot.txt", plotInfo)
+
+
+	@time iters, vals = SimulateSOMC(G, station, maxState, probs, true)
+
+	plotInfo = [iters vals]
+	writedlm("$networkName-Plot1.txt", plotInfo)
+
+
+	#plot function after all is done
+	plot(iters, vals)
+	show()
+end
+
+function printGraph()
+
+	inputFile = "$networkName-In.txt"
+	probsFile = "$networkName-Probs.txt"
+	G, M, maxState, probs = getMatrix(inputFile, probsFile)
+	println("$G")
+	quit()
+end
+
 function main()
 
 	inputFile = "$networkName-In.txt"
@@ -467,33 +408,10 @@ function main()
 	plotInfo = [iters vals]
 	writedlm("$networkName-Plot0.txt", plotInfo)
 
-	@time iters, vals = SimulateOneSOMC(G, station, maxState, probs)
+	@time iters, vals = SimulateSOMC(G, station, maxState, probs, true)
 
 	plotInfo = [iters vals]
 	writedlm("$networkName-Plot1.txt", plotInfo)
-
-	#plot function after all is done
-	plot(iters, vals)
-	show()
-end
-
-function simuJump()
-
-	inputFile = "$networkName-In.txt"
-	probsFile = "$networkName-Probs.txt"
-	G, M, maxState, probs = getMatrix(inputFile, probsFile)
-
-	#getting information about the size of the eigenvectors
-
-	n = size(M,1)
-
-	station = readdlm("$networkName-StationaryDist.out")
-
-	write(STDERR, "beginning simulation\n")
-	@time iters, vals = SimulateSOMC(G, station, maxState, probs)
-
-	plotInfo = [iters vals]
-	writedlm("$networkName-Plot.txt", plotInfo)
 
 	#plot function after all is done
 	plot(iters, vals)
