@@ -14,9 +14,8 @@ Test the norms between eigenvectors of successive calculations, and for the stat
 using PyPlot
 
 networkName = "socEpSmall"
-
-#also change state information below
-
+stateA = 621
+stateB = 1478
 
 
 function extractStationaryDist(maxState, c, eigenSize)
@@ -210,7 +209,7 @@ end
 function SimulateSOMC(G, station, maxState, probs, oneVec = false)
 	counter = 0.0  # this is used to determine how many transitions have been made
 	∆ = 0 #this is never used
-	a,b = 621, 1478 #arbitrary starting point
+	a,b = stateA, stateB #arbitrary starting point
 
 	converg = 0
 	if oneVec
