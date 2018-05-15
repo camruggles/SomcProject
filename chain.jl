@@ -5,9 +5,6 @@ function fRand()
 	return A[1]
 end
 
-
-
-
 G = Dict{Int64, Array{Int64, 1}}()
 inst = Dict{Int64, Int64}()
 inst[1] = inst[2] = inst[3] = 0
