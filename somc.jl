@@ -8,8 +8,8 @@ using PyPlot			#inclusion of relevant library
 networkName = "NAN"		#the name of the network used for all the file naming ,should be NAN unless it's a copy fo the source
 stateA = 621			#set to a dummy value
 stateB = 1478			#set to a dummy value
-totalTimes = 100000
 
+totalTimes = 250000		#the number of iterations in the simulation
 
 #=
 	Sums over pairs of states to create a stationary distribution of normal size
@@ -309,10 +309,12 @@ function SimulateSOMC(G, station, maxState, probs, oneVec = false)
 	
 		#update the number of times we've been at a state
 		instance[c] += 1
-		converg[c] = 1.0 / instance[c]
+		converg[c] = instance[c] / counter
 
 		#update the convergence distribution each time we get to a state
 		indicator = true
+
+		#=
 		for j in 1:maxState
 			if instance[j] != 0
 				#converg[j] = 1.0 / instance[j]
@@ -321,15 +323,21 @@ function SimulateSOMC(G, station, maxState, probs, oneVec = false)
 				indicator = false
 			end
 		end
+
+
 		#if there are no zeroes left
 		if indicator && indication
 			write(STDERR, "All states reached at iteration $beans and at state groupings $a $b $c\n")
 			write(STDOUT, "All states reached at iteration $beans and at state groupings $a $b $c\n")
 			indication = false
 		end
+		=#
 
 		#update the new difference and add it to the x and y axis information
 		d = norm(converg-station)
+
+
+		
 		t = time() - t
 		if beans % modulo == 0
 			append!(iters, beans)
