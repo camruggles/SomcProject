@@ -5,11 +5,11 @@ using PyPlot			#inclusion of relevant library
 
 #the value of network name needs to be set accordingly for input and output files to be used properly
 
-networkName = "NAN"		#the name of the network used for all the file naming ,should be NAN unless it's a copy fo the source
+networkName = ARGS[1]		#the name of the network used for all the file naming ,should be NAN unless it's a copy fo the source
 stateA = 621			#set to a dummy value
 stateB = 1478			#set to a dummy value
 
-totalTimes = 250000		#the number of iterations in the simulation
+totalTimes = parse(Int, ARGS[2])		#the number of iterations in the simulation
 
 #=
 	Sums over pairs of states to create a stationary distribution of normal size

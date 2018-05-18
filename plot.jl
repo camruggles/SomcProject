@@ -1,6 +1,6 @@
 
 
-A = readdlm("socEpSmall-Plot0.txt")
+A = readdlm(ARGS[1])
 n = size(A, 1)
 
 x = A[1:n, 1]
