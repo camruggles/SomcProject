@@ -1,9 +1,15 @@
 
 #include <iostream>
-#define n 298182
-#define k 1652
+#define n 0
+#define k 0
 
 int main(){
+	
+
+	if (n == 0){
+		printf("Change the macros for the state numbers\n");
+		return -1;
+	}
 	
 	int count = 0;	
 	int *arr = new int[k];

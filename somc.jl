@@ -10,6 +10,7 @@ stateA = 621			#set to a dummy value
 stateB = 1478			#set to a dummy value
 
 totalTimes = parse(Int, ARGS[2])		#the number of iterations in the simulation
+nonRecurrentStates = 1
 
 #=
 	Sums over pairs of states to create a stationary distribution of normal size
@@ -17,8 +18,7 @@ totalTimes = parse(Int, ARGS[2])		#the number of iterations in the simulation
 		c: the eigenvector normalized
 		eigenSize: the size of the eigenvector
 	output: the stationary distribution
-	@author Cameron RUggles
-=#
+	@author Cameron RUggles =#
 function extractStationaryDist(maxState, c, eigenSize)
 	#Sum over pairs of states
 	station = zeros(Float64, maxState, 1)
@@ -31,6 +31,8 @@ function extractStationaryDist(maxState, c, eigenSize)
 	#sum of the stationary distribution
 	#not useful except for error checking
 	#should be one
+
+	#=
 	ei = ones(1, maxState)
 	inner = ei*station
 
@@ -41,8 +43,20 @@ function extractStationaryDist(maxState, c, eigenSize)
 		write(STDERR, "Error : Stationary Distribution does not add to one")
 		quit()
 	end
+	=#
 
 	return station
+end
+
+function extractRowStationaryDist(maxState, c, eigenSize)
+	station = zeros(Float64, maxState, 1)
+	for i in 1:eigenSize
+		j = div(i-1, maxState) + 1
+		station[j] += c[i]
+	end
+
+	return station
+
 end
 
 #=
@@ -256,7 +270,7 @@ end
 
 
 #=
-	This will simulate a Markov Chain's random walk (not sure if that's right)
+	This will simulate a Markov Chain's execution sequence (not sure if that's right)
 	args: graph G of markov chain adjList, the stationary distribution, the maximum number of states or the number of the largest state,
 			a dictionary of the transition probabilities from each state, typically equal
 			and a boolean value, set to one to use a vector of ones during norm measurements
@@ -272,7 +286,6 @@ end
 =#
 function SimulateSOMC(G, station, maxState, probs, oneVec = false)
 	counter = 0.0  # this is used to determine how many transitions have been made
-	∆ = 0 #this is never used, but can be used to stop the simulation once the target vector is similar enough to the stationary distribution
 	a,b = stateA, stateB #arbitrary starting point
 
 	#initialize a target vector to be used for measuring convergence
@@ -289,14 +302,10 @@ function SimulateSOMC(G, station, maxState, probs, oneVec = false)
 	iters = [0]
 	vals = [0.0]
 
-	indication = true
-
 	modulo = 10
 
+
 	for beans in 1:totalTimes
-		 #not sure how to start the chain, doesn't really matter but still
-		t = time()
-		
 		#get graph adj list for state that we're on currenlty
 		arr = G[a,b]
 
@@ -311,34 +320,11 @@ function SimulateSOMC(G, station, maxState, probs, oneVec = false)
 		instance[c] += 1
 		converg[c] = instance[c] / counter
 
-		#update the convergence distribution each time we get to a state
-		indicator = true
-
-		#=
-		for j in 1:maxState
-			if instance[j] != 0
-				#converg[j] = 1.0 / instance[j]
-				converg[j] = instance[j] / counter
-			else #if it is zero
-				indicator = false
-			end
-		end
-
-
-		#if there are no zeroes left
-		if indicator && indication
-			write(STDERR, "All states reached at iteration $beans and at state groupings $a $b $c\n")
-			write(STDOUT, "All states reached at iteration $beans and at state groupings $a $b $c\n")
-			indication = false
-		end
-		=#
+		
 
 		#update the new difference and add it to the x and y axis information
 		d = norm(converg-station)
 
-
-		
-		t = time() - t
 		if beans % modulo == 0
 			append!(iters, beans)
 			append!(vals, d)
@@ -354,29 +340,7 @@ function SimulateSOMC(G, station, maxState, probs, oneVec = false)
 		a=b
 		b=c
 		counter += 1
-
-		#this is never used
-		if false #d < ∆
-			println("below threshold")
-			break
-		end
-
 	end
-	
-	println("Iterations until convergence:")
-	println("$counter")
-
-	numOnes = 0
-
-
-	for i in 1:maxState
-		#uncomment for monitoring purposes
-		#print("My: $(converg[i]) \tStationary: $(station[i])\n")
-		if instance[i] == 0
-			numOnes += 1
-		end
-	end
-	println("Num ONes: $numOnes")
 
 	#getting rid of the zeros used to initialize the vectors
 	#makes the plots look better
@@ -474,16 +438,19 @@ function main()
 
 	#calculated, isolate, and print the eigenvalues and eigenvector information
 	c, eigenSize = extractNormalizedEigenvector(M)
+	#c = readdlm("$networkName-EgVec.out")
+	#eigenSize = length(c)
 
 	#include if you want, this file is generally very large and once the eigenvector is extracted, the stationary distribution is a quick find
 	#writedlm("$networkName-EgVec.out", c)
 
 	#calculating the one state stationary distribution, instead of over pairs of states
-	station = extractStationaryDist(maxState, c, eigenSize)
+	station = extractRowStationaryDist(maxState, c, eigenSize)
 	writedlm("$networkName-StationaryDist.out", station)
+	#station = readdlm("$networkName-StationaryDist.out")
 
 	#begin simulation, and then plot the convergence rate and print axis information to file
-	write(STDERR, "beginning simulation\n")
+	write(STDERR, "\n\nbeginning simulation\n")
 
 	#first simulation
 	@time iters, vals = SimulateSOMC(G, station, maxState, probs)
@@ -491,14 +458,15 @@ function main()
 	writedlm("$networkName-Plot0.out", plotInfo)
 
 
+	write(STDERR, "\n\nbeginning second simulation\n");
 	#second simulation with a different metric for convergence
 	@time iters, vals = SimulateSOMC(G, station, maxState, probs, true)
 	plotInfo = [iters vals]
 	writedlm("$networkName-Plot1.out", plotInfo)
 
 	#plot function after all is done
-	#plot(iters, vals)
-	#show()
+	plot(iters, vals)
+	show()
 end
 
 
