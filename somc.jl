@@ -5,20 +5,20 @@ using PyPlot			#inclusion of relevant library
 
 #the value of network name needs to be set accordingly for input and output files to be used properly
 
-networkName = ARGS[1]		#the name of the network used for all the file naming ,should be NAN unless it's a copy fo the source
-stateA = 621			#set to a dummy value
-stateB = 1478			#set to a dummy value
+networkName = ARGS[1]		#the name of the network used for all the file naming
+start_state_one = 621			#set to a dummy value
+start_state_two = 1478			#set to a dummy value
 
-totalTimes = parse(Int, ARGS[2])		#the number of iterations in the simulation
-nonRecurrentStates = 1
+totalIterations = parse(Int, ARGS[2])		#the number of iterations in the simulation
 
 #=
-	Sums over pairs of states to create a stationary distribution of normal size
-	args: maxState: the largest state number or the number of states
-		c: the eigenvector normalized
+	arguments:
+		maxState : the index of the largest state
+		c : the eigenvector
 		eigenSize: the size of the eigenvector
-	output: the stationary distribution
-	@author Cameron RUggles =#
+	returns:
+		the stationary distribution
+=#
 function extractStationaryDist(maxState, c, eigenSize)
 	#Sum over pairs of states
 	station = zeros(Float64, maxState, 1)
@@ -28,26 +28,17 @@ function extractStationaryDist(maxState, c, eigenSize)
 		end
 	end
 
-	#sum of the stationary distribution
-	#not useful except for error checking
-	#should be one
-
-	#=
-	ei = ones(1, maxState)
-	inner = ei*station
-
-	println("Stationary sum")
-	println("$inner")
-
-	if abs(inner[1] - 1.0) > 0.01
-		write(STDERR, "Error : Stationary Distribution does not add to one")
-		quit()
-	end
-	=#
-
 	return station
 end
 
+#=
+	arguments:
+		maxState : the index of the largest state
+		c : the eigenvector
+		eigenSize: the size of the eigenvector
+	returns:
+		the stationary distribution
+=#
 function extractRowStationaryDist(maxState, c, eigenSize)
 	station = zeros(Float64, maxState, 1)
 	for i in 1:eigenSize
@@ -56,14 +47,12 @@ function extractRowStationaryDist(maxState, c, eigenSize)
 	end
 
 	return station
-
 end
 
 #=
 	extracts the appropriate eigenvector that goes with the stationary distribution, e.g. the eigenvector with eigenvalue 1
-	args: a sparse chain matrix
+	args: a sparse markov chain transition matrix
 	output: the eigenvector and the size
-	@author Cameron Ruggles
 
 =#
 function extractEigenvector(M)
@@ -106,8 +95,6 @@ end
 	Extracts and eigenvector from a sparse matrix and then normalizes it so it represents the stationary distribution
 	args: a sparse chain matrix
 	output: the stationary distribution and the size of the eigenvector
-	@author Cameron Ruggles
-
 =#
 function extractNormalizedEigenvector(M)
 
@@ -119,7 +106,7 @@ function extractNormalizedEigenvector(M)
 	ei = ones(1, eigenSize)
 	inner = ei*c
 
-	println("inner product : $inner")
+	println("inner product : $inner") #Should be one.
 	s = inner[1]
 	c = c/s
 
@@ -134,7 +121,6 @@ end
 			M : the sparse chain matrix
 			maxState : the maximum number of states in the chain, or the number of the largest state
 			probs : a probability transition dictionary for the transition prob at each state pair
-	@author Cameron Ruggles
 
 =#
 function getMatrix(inputFile, probsFile)
@@ -153,7 +139,7 @@ function getMatrix(inputFile, probsFile)
 		a = convert(Int64, P[i,1]) + 1
 		b = convert(Int64, P[i,2]) + 1
 		c = P[i,3]
-		i1 = f(a,b,maxState)
+		i1 = statePairIndex(a,b,maxState)
 		probs[i1] = c
 
 	end
@@ -171,30 +157,15 @@ function getMatrix(inputFile, probsFile)
 
 	println("size: $n")
 
-	#intaking input array and then calculating numbers for state pairs
-
-	#i j k
-	#i1 = i j
-	#i2 = j k
-	#probs is ij but should be jk
-	#from jk it has n destinations i with P(1/n)
-	#instead, we do ij to destination k with P(1/ij)
-	#this works as if it were also i <- jk as well as ij->k
-	#since the state ordering is the relevant part and it's super symmetric
-
-
-
 	#exstracting a pair of states to be used later during the beginning of the simulation
 	psize = size(A, 1)
-
-	inl = psize * 4 / 10
-
+	inl = psize * rand()
 	inl = round(Int64, inl)
-	global stateA = convert(Int64, A[inl,1]) + 1
-	global stateB = convert(Int64, A[inl,2]) + 1
 
+	global start_state_one = convert(Int64, A[inl,1]) + 1
+	global start_state_two = convert(Int64, A[inl,2]) + 1
 
-
+	#intaking input array and then calculating numbers for state pairs
 	for i in 1:n
 		#intaking the 3 variables
 		a = convert(Int64, A[i,1])+1
@@ -202,19 +173,13 @@ function getMatrix(inputFile, probsFile)
 		c = convert(Int64, A[i,3])+1
 
 		#converting the indices to states
-		i1 = f(a,b, maxState)
-		i2 = f(b,c, maxState)
+		i1 = statePairIndex(a,b, maxState)
+		i2 = statePairIndex(b,c, maxState)
 
 		#recording the information in arrays for quicker Spare matrix construction
 		arg1[i] = i1
 		arg2[i] = i2
 		arg3[i] = probs[i1]
-
-		#=
-		if i1 == spec
-			println("$a, $b, $c")
-		end
-		=#
 
 		#store extra information in another graph for simulation purposes
 		try
@@ -243,7 +208,6 @@ end
 	This will test to see if a matrix is column stochastic
 	args: matrix 'M', and the size of the matrix 'n'
 	output: a boolean value true or false indiciating column stochasticity
-	@author Cameron Ruggles
 
 =#
 function testColumnStochastic(M, n)
@@ -270,94 +234,95 @@ end
 
 
 #=
-	This will simulate a Markov Chain's execution sequence (not sure if that's right)
-	args: graph G of markov chain adjList, the stationary distribution, the maximum number of states or the number of the largest state,
-			a dictionary of the transition probabilities from each state, typically equal
-			and a boolean value, set to one to use a vector of ones during norm measurements
+	This will simulate a Markov Chain's random walk
+	args: G: graph of markov chain adjList, 
+			station: the stationary distribution, 
+			maxState: the maximum number of states or the number of the largest state,
+			probs: a dictionary of the transition probabilities from each state, typically equal
+			oneVec: and a boolean value, set to one to use a vector of ones during norm measurements
 			leave as is to use a regular vector of zeros
 	output: two column array, with x axis and y axis information needed to generate a plot discussing the convergence
 		will also print to file the simulated distribution after n iterations,
 		and other information about when each state has been simulated at least once
-	@author Cameron Ruggles
-
-	this is a markov chain simulation, the chain makes random jumps to different states and we 
-	record the information to see how quickly it becomes accurate to the stationary distribution
-
 =#
 function SimulateSOMC(G, station, maxState, probs, oneVec = false)
+    println("States: $start_state_one, $start_state_two")
 	counter = 0.0  # this is used to determine how many transitions have been made
-	a,b = stateA, stateB #arbitrary starting point
+	a,b = start_state_one, start_state_two #arbitrary starting point
 
 	#initialize a target vector to be used for measuring convergence
-	converg = 0
+	simulatedDistribution = zeros(Float64, maxState)
 	if oneVec
-		converg = ones(Float64, maxState)
-	else
-		converg = zeros(Float64, maxState)
+		simulatedDistribution = ones(Float64, maxState)
 	end
 
 	#initializing variables
-	instance = zeros(Float64, maxState)
+	state_instances = zeros(Float64, maxState)
+	unspoken = true #for printing information about a one time occurance
 
 	iters = [0]
 	vals = [0.0]
 
-	modulo = 10
+	printFrequency = 10 #use to determine how often to print some information
 
 
-	for beans in 1:totalTimes
+	for iterations in 1:totalIterations
 		#get graph adj list for state that we're on currenlty
 		arr = G[a,b]
 
 		#get a random end state for us to jump to
 		i = fRand()
-		i = ceil( i/probs[f(a,b, maxState)] )   #check this line of code
+		i = ceil( i/probs[statePairIndex(a,b, maxState)] )   #check this line of code
 		i = convert(Int64, i)
-		#arr = G[a,b]
+
 		c = arr[i]
 	
 		#update the number of times we've been at a state
-		instance[c] += 1
-		converg[c] = instance[c] / counter
+		state_instances[c] += 1
+		simulatedDistribution[c] = state_instances[c] / counter
 
 		
 
 		#update the new difference and add it to the x and y axis information
-		d = norm(converg-station)
+		d = norm(simulatedDistribution-station)
 
-		if beans % modulo == 0
-			append!(iters, beans)
+		#print out information about the difference ever (modulo) transitions
+		if iterations % printFrequency == 0
+			append!(iters, iterations)
 			append!(vals, d)
-			#=
-			println("beans: $beans")
-			println("\ta: $a, b: $b, c, $c")
-			println("\tDiff: $d")
-			println("\tTime: $t")
-			=#
 		end
 
+		#print when the simulation falls below a certain threshold for vector difference
+		#to deactivate, just set unspoken to false at the top of this function
+		if d < 0.02 && unspoken
+			println("Threshold: $iterations")
+			unspoken = false
+		end
 
+		#update states for grabbing another random state during next iteration
 		a=b
 		b=c
 		counter += 1
 	end
 
-	#getting rid of the zeros used to initialize the vectors
-	#makes the plots look better
+
+	#clip the zeroes off the front of the two arrays to make the plots look better
 	n = size(iters, 1)
 	iters = iters[2:n]
 	vals = vals[2:n]
 	return iters, vals
+
+
 end
 
 
 #calculates the index of the state pairs
-function f(x, y, v)
+function statePairIndex(x, y, v)
 	(x-1) * v + y
 end
 
 
-#Generates a number between 0 and 1
+#Generates a number between 0 and 1, because I didn't know what rand() was
 function fRand()
 	s = 2;
 	A = abs.(s*rand(1,1) - s/2)
@@ -371,7 +336,6 @@ then we read it in and then just run the simulation
 used for hammering out details with simulation
 Eigenvector calculation is very expensive and avoided in this case
 
-@author Cameron RUggles
 args: no input other than networkname and it's associated files, as well as the stationary distribution file
 output: writes to file the Plot information for zero and one simulation
 =#
@@ -392,14 +356,7 @@ function simuJump()
 	@time iters, vals = SimulateSOMC(G, station, maxState, probs)
 
 	plotInfo = [iters vals]
-	writedlm("$networkName-Plot0.out", plotInfo)
-
-
-	@time iters, vals = SimulateSOMC(G, station, maxState, probs, true)
-
-	plotInfo = [iters vals]
-	writedlm("$networkName-Plot1.out", plotInfo)
-
+	writedlm("$networkName-Plot.out", plotInfo)
 
 	#plot function after all is done
 	plot(iters, vals)
@@ -411,7 +368,6 @@ end
 Main execution of the algorithm
 args: input includes files used for matrix construction, based on the network name
 output: writes to file the following information: eigenvectors, stationary distribution, zero and one convergence plots
-@author Cameron Ruggles
 
 creates matrix for SOMC
 extracts eigenvector and stationary distribution
@@ -438,16 +394,11 @@ function main()
 
 	#calculated, isolate, and print the eigenvalues and eigenvector information
 	c, eigenSize = extractNormalizedEigenvector(M)
-	#c = readdlm("$networkName-EgVec.out")
-	#eigenSize = length(c)
-
-	#include if you want, this file is generally very large and once the eigenvector is extracted, the stationary distribution is a quick find
-	#writedlm("$networkName-EgVec.out", c)
+	M = 0; gc()
 
 	#calculating the one state stationary distribution, instead of over pairs of states
 	station = extractRowStationaryDist(maxState, c, eigenSize)
 	writedlm("$networkName-StationaryDist.out", station)
-	#station = readdlm("$networkName-StationaryDist.out")
 
 	#begin simulation, and then plot the convergence rate and print axis information to file
 	write(STDERR, "\n\nbeginning simulation\n")
@@ -455,14 +406,7 @@ function main()
 	#first simulation
 	@time iters, vals = SimulateSOMC(G, station, maxState, probs)
 	plotInfo = [iters vals]
-	writedlm("$networkName-Plot0.out", plotInfo)
-
-
-	write(STDERR, "\n\nbeginning second simulation\n");
-	#second simulation with a different metric for convergence
-	@time iters, vals = SimulateSOMC(G, station, maxState, probs, true)
-	plotInfo = [iters vals]
-	writedlm("$networkName-Plot1.out", plotInfo)
+	writedlm("$networkName-Plot.out", plotInfo)
 
 	#plot function after all is done
 	plot(iters, vals)

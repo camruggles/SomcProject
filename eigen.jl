@@ -10,7 +10,8 @@ stateA = 621			#set to a dummy value
 stateB = 1478			#set to a dummy value
 
 totalTimes = parse(Int, ARGS[2])		#the number of iterations in the simulation
-nonRecurrentStates = 1
+nonRecurrentStates = 0
+
 
 #=
 	Sums over pairs of states to create a stationary distribution of normal size
@@ -187,7 +188,7 @@ function getMatrix(inputFile, probsFile)
 	#exstracting a pair of states to be used later during the beginning of the simulation
 	psize = size(A, 1)
 
-	inl = psize * 4 / 10
+	inl = psize * rand()
 
 	inl = round(Int64, inl)
 	global stateA = convert(Int64, A[inl,1]) + 1
@@ -304,6 +305,7 @@ function SimulateSOMC(G, station, maxState, probs, oneVec = false)
 	vals = [0.0]
 
 	indication = true
+	unspoken = true
 
 	modulo = 10
 
@@ -314,6 +316,7 @@ function SimulateSOMC(G, station, maxState, probs, oneVec = false)
 		t = time()
 		
 		#get graph adj list for state that we're on currenlty
+		#println("$a, $b")
 		arr = G[a,b]
 
 		#get a random end state for us to jump to
@@ -330,7 +333,7 @@ function SimulateSOMC(G, station, maxState, probs, oneVec = false)
 		#update the convergence distribution each time we get to a state
 		indicator = true
 
-		
+		if indication	
 		for j in 1:maxState
 			if instance[j] != 0
 				#converg[j] = 1.0 / instance[j]
@@ -340,6 +343,7 @@ function SimulateSOMC(G, station, maxState, probs, oneVec = false)
 				nonZero += 1
 			end
 		end
+		end
 
 
 		#if there are no zeroes left
@@ -347,6 +351,7 @@ function SimulateSOMC(G, station, maxState, probs, oneVec = false)
 			#write(STDERR, "All states reached at iteration $beans and at state groupings $a $b $c\n")
 			write(STDOUT, "All states reached at iteration $beans and at state groupings $a $b $c\n")
 			indication = false
+
 		end
 		
 
@@ -372,16 +377,13 @@ function SimulateSOMC(G, station, maxState, probs, oneVec = false)
 		b=c
 		counter += 1
 
-		#this is never used
-		if false #d < ∆
-			println("below threshold")
-			break
+		if d < 0.01 && unspoken
+			println("0.02 Threshold: $beans")
+			unspoken = false
 		end
 
 	end
 	
-	println("Iterations until convergence:")
-	println("$counter")
 
 	numOnes = 0
 
@@ -391,10 +393,9 @@ function SimulateSOMC(G, station, maxState, probs, oneVec = false)
 		#print("My: $(converg[i]) \tStationary: $(station[i])\n")
 		if instance[i] == 0
 			numOnes += 1
-			println("$(instance[i])")
+			#println("$i : $(instance[i])")
 		end
 	end
-	println("Num ONes: $numOnes")
 
 	#getting rid of the zeros used to initialize the vectors
 	#makes the plots look better
@@ -442,22 +443,63 @@ function simuJump()
 
 	station = readdlm("$networkName-StationaryDist.out")
 
+	allValues = Array{Float64, 1}()
+	k = keys(G)
+	statesArray = Array{Tuple{Int64, Int64}, 1}()
+	for i in k
+		push!(statesArray, i)
+	end
+
+#=
+	for i in eachindex(statesArray)
+		println("$i: $(statesArray[i])")
+	end
+=#
+
 	write(STDERR, "beginning simulation\n")
-	@time iters, vals = SimulateSOMC(G, station, maxState, probs)
+	for i in 1:1000
 
-	plotInfo = [iters vals]
-	writedlm("$networkName-Plot0.out", plotInfo)
+		psize = size(statesArray, 1)
+
+		inl = psize * rand()
+
+		inl = round(Int64, inl)
+		#println("inl: $inl")
+		#println("statesArray[inl]: $(statesArray[inl])")
+		pre_state_one, pre_state_two = statesArray[inl]
+		global stateA = convert(Int64, pre_state_one)
+		global stateB = convert(Int64, pre_state_two)
 
 
+
+		@time iters, vals = SimulateSOMC(G, station, maxState, probs)
+
+		n = length(vals)
+		push!(allValues, vals[n])
+		c = vals[n]
+	#	println("Simulation Result: $c")
+
+
+	end
+
+	println("Final results")
+	for i in allValues
+		println("Value: $i")
+	end
+	#plotInfo = [iters vals]
+	#writedlm("$networkName-Plot0.out", plotInfo)
+
+#=
 	@time iters, vals = SimulateSOMC(G, station, maxState, probs, true)
 
 	plotInfo = [iters vals]
 	writedlm("$networkName-Plot1.out", plotInfo)
-
+=#
 
 	#plot function after all is done
-	plot(iters, vals)
-	show()
+	#plot(iters, vals)
+	
+ 	#show()
 end
 
 
@@ -477,7 +519,7 @@ function main()
 	inputFile = "$networkName-In.txt"
 	probsFile = "$networkName-Probs.txt"
 	G, M, maxState, probs = getMatrix(inputFile, probsFile)
-
+	
 	#getting information about the size of the eigenvectors
 	n = size(M,1)
 
@@ -510,13 +552,13 @@ function main()
 	plotInfo = [iters vals]
 	#writedlm("$networkName-Plot0.out", plotInfo)
 
-
+#=
 	write(STDERR, "\n\nbeginning second simulation\n");
 	#second simulation with a different metric for convergence
 	#@time iters, vals = SimulateSOMC(G, station, maxState, probs, true)
 	plotInfo = [iters vals]
 	#writedlm("$networkName-Plot1.out", plotInfo)
-
+=#
 	#plot function after all is done
 	plot(iters, vals)
 	show()
@@ -535,4 +577,8 @@ if networkName == "NAN"		#stupidity prevention
 	quit()
 end
 
+
+simuJump()
+quit()
 main()						#function to be run, not always main
+
